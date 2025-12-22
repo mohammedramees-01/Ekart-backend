@@ -1,0 +1,16 @@
+{
+  "name": "ekart-backend",
+  "version": "1.0.0",
+  "description": "",
+  "license": "ISC",
+  "author": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "nodemon server.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "nodemon": "^3.1.11"
+  }
+}
