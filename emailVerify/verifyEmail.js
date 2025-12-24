@@ -2,7 +2,7 @@ import nodeMailer from 'nodemailer'
 import 'dotenv/config'
 
 
-export const verifyEmail = (token,email) => {
+export const verifyEmail = async(token,email) => {
     const transporter = nodeMailer.createTransport({
         service: 'gmail',
         auth: {
