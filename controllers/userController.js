@@ -4,6 +4,8 @@ import jwt from 'jsonwebtoken'
 import { verifyEmail } from "../emailVerify/verifyEmail.js";
 import { Session } from "../models/sessionModel.js";
 import { sendOTPMail } from "../emailVerify/sendOTPMail.js";
+
+import cloudinary from "../utils/cloudinary.js";
 export const register = async (req, res) => {
     try {
         const { firstName, lastName, email, password } = req.body;
@@ -55,9 +57,7 @@ export const verify = async (req, res) => {
                 message: "Authorization token missing or invalid",
             });
         }
-
         const token = authHeader.split(" ")[1];
-
         let decoded;
         try {
             decoded = jwt.verify(token, process.env.SECRET_KEY);
@@ -68,7 +68,6 @@ export const verify = async (req, res) => {
                     message: "Verification token has expired",
                 });
             }
-
             return res.status(400).json({
                 success: false,
                 message: "Token verification failed",
@@ -158,8 +157,8 @@ export const login = async (req, res) => {
             })
         }
 
-        const accessToken = jwt.sign({ id: existingUser._id }, process.env.SECRET_KEY, { expiresIn: '1m' })
-        const refreshToken = jwt.sign({ id: existingUser._id }, process.env.SECRET_KEY, { expiresIn: '3m' })
+        const accessToken = jwt.sign({ id: existingUser._id }, process.env.SECRET_KEY, { expiresIn: '30m' })
+        const refreshToken = jwt.sign({ id: existingUser._id }, process.env.SECRET_KEY, { expiresIn: '50m' })
         existingUser.isLoggedIn = true
         await existingUser.save()
         // check existing session delete
@@ -186,25 +185,30 @@ export const login = async (req, res) => {
 
 export const logout = async (req, res) => {
     try {
-        const userId = req.id
-        if (userId) {
-            res.json({
-                id: userId
-            })
+        const userId = req.id;
+
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            });
         }
-        await Session.deleteMany({ userId: userId })
-        await User.findByIdAndUpdate(userId, { isLoggedIn: false })
+
+        await Session.deleteMany({ userId });
+        await User.findByIdAndUpdate(userId, { isLoggedIn: false });
+
         return res.status(200).json({
             success: true,
-            message: 'user logged out successfully'
-        })
+            message: "user logged out successfully"
+        });
+
     } catch (error) {
         return res.status(500).json({
             success: false,
             message: error.message
-        })
+        });
     }
-}
+};
 
 export const forgotPassword = async (req, res) => {
     try {
@@ -324,40 +328,107 @@ export const changePassword = async (req, res) => {
 }
 
 // Dout Check Again
+export const allUser = async ({ }, res) => {
+    try {
+        const users = await User.find()
+        return res.status(200).json({
+            success: true,
+            users
+        })
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        })
+    }
+}
 
-// export const allUser = async ({ }, res) => {
-//     try {
-//         const users = await User.find()
-//         return res.status(200).json({
-//             success: true,
-//             users
-//         })
-//     } catch (error) {
-//         return res.status(500).json({
-//             success: false,
-//             message: error.message
-//         })
-//     }
-// }
+export const getUserById = async (req, res) => {
+    try {
+        const { userId } = req.params; //extract userId from req
+        const user = await User.findById(userId).select("-password -otp -otpExpiry -token")
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            })
+        }
+        res.status(200).json({
+            success: true,
+            user,
+        })
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        })
+    }
+}
 
-// export const getUserById = async (req, res) => {
-//     try {
-//         const { userId } = req.params; //extract userId from req
-//         const user = await User.findById(userId).select("-password -otp -otpExpiry -token")
-//         if (!user) {
-//             return res.status(404).json({
-//                 success: false,
-//                 message: "User not found"
-//             })
-//         }
-//         res.status(200).json({
-//             success: true,
-//             user,
-//         })
-//     } catch (error) {
-//         return res.status(500).json({
-//             success: false,
-//             message: error.message
-//         })
-//     }
-// }
+export const UpdateUser = async (req, res) => {
+    try {
+        const userIdToUpdate = req.params.id
+        const loggedInUser = req.user
+        const { firstName, lastName, address, city, zipCode, phoneNo, role } = req.body
+
+        if (loggedInUser._id.toString() !== userIdToUpdate && loggedInUser.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                message: "You are not allowed to update this profile"
+            })
+        }
+        let user = await User.findById(userIdToUpdate);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            })
+        }
+        let profilePicUrl = user.profilePic;
+        let profilepicPublicId = user.profilePicPublicId;
+
+        // if a new files is uploaded
+        if (req.file) {
+            if (profilepicPublicId) {
+                await cloudinary.uploader.destroy(profilepicPublicId)
+            }
+            const uploadResult = await new Promise((resolve, reject) => {
+                const stream = cloudinary.uploader.upload_stream(
+                    { folder: "profiles" },
+                    (error, result) => {
+                        if (error) {
+                            reject(error)
+                        } else {
+                            resolve(result)
+                        }
+                    }
+                )
+                stream.end(req.file.buffer)
+            })
+            profilePicUrl = uploadResult.secure_url;
+            profilepicPublicId = uploadResult.public_id
+        }
+        // update fields
+        user.firstName = firstName || user.firstName;
+        user.lastName = lastName || user.lastName;
+        user.address = address || user.address;
+        user.city = city || user.city;
+        user.zipCode = zipCode || user.zipCode;
+        user.phoneNo = phoneNo || user.phoneNo;
+        user.role = role;
+        user.profilePic = profilePicUrl
+        user.profilePicPublicId = profilepicPublicId
+        const updatedUser = await user.save()
+        return res.status(200).json({
+            success: 'true',
+            message: "Profile Update Successfully",
+            user: updatedUser
+        })
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        })
+    }
+}
+
