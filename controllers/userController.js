@@ -157,8 +157,8 @@ export const login = async (req, res) => {
             })
         }
 
-        const accessToken = jwt.sign({ id: existingUser._id }, process.env.SECRET_KEY, { expiresIn: '30m' })
-        const refreshToken = jwt.sign({ id: existingUser._id }, process.env.SECRET_KEY, { expiresIn: '50m' })
+        const accessToken = jwt.sign({ id: existingUser._id }, process.env.SECRET_KEY, { expiresIn: '1d' })
+        const refreshToken = jwt.sign({ id: existingUser._id }, process.env.SECRET_KEY, { expiresIn: '2d' })
         existingUser.isLoggedIn = true
         await existingUser.save()
         // check existing session delete
@@ -431,4 +431,6 @@ export const UpdateUser = async (req, res) => {
         })
     }
 }
+
+ 
 

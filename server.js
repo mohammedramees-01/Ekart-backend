@@ -2,6 +2,7 @@ import express from "express";
 import dotenv from "dotenv";
 import connectDB from "./database/db.js";
 import userRoutes from "./routes/userRoutes.js";
+import productRoutes from './routes/productRoute.js'
 import cors from 'cors'
 dotenv.config();
 
@@ -15,6 +16,7 @@ app.use(cors({
 }))
 // routes
 app.use("/api/v1/user", userRoutes);
+app.use("/api/v1/product", productRoutes);
 // example: http://localhost:8000/api/v1/user/register
 
 const PORT = process.env.PORT || 3000;
